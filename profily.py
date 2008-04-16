@@ -349,14 +349,20 @@ class Profile:
             # it returns.
             ct = ct + frame_total
             cc = cc + 1
+        else:
+            frame_total = 0
 
         if pfn in callers:
-            callers[pfn] = callers[pfn] + 1  # hack: gather more
+            ccc, cct = callers[pfn]
+            ccc = ccc + 1
+            cct = cct + frame_total
+            callers[pfn] = ccc, cct
+            # hack: gather more
             # stats such as the amount of time added to ct courtesy
             # of this specific call, and the contribution to cc
             # courtesy of this call.
         else:
-            callers[pfn] = 1
+            callers[pfn] = 1, frame_total
 
         timings[rfn] = cc, ns - 1, tt + rit, ct, callers
 
@@ -442,7 +448,7 @@ class Profile:
         for func, (cc, ns, tt, ct, callers) in self.timings.iteritems():
             callers = callers.copy()
             nc = 0
-            for callcnt in callers.itervalues():
+            for callcnt, callct in callers.itervalues():
                 nc += callcnt
             self.stats[func] = cc, nc, tt, ct, callers
 
