@@ -432,7 +432,7 @@ class Stats:
         indent = ""
         for func, (ccc, cct) in clist:
             fcc, fnc, ftt, fct, fcallers = self.stats[source]
-            if cct/ct < threshold and not best:
+            if not best and (ct == 0.0 or cct/ct < threshold):
                 continue
             print >> self.stream, func_dot_id(func), "->", func_dot_id(source), '[ label="%s (%d)", weight=%s, penwidth=%s, style="setlinewidth(%s)"];' % (f8(cct), ccc, self.dot_weight(cct), self.dot_pen_width(cct), self.dot_pen_width(cct),)
             shown_callers.setdefault(func, False)
