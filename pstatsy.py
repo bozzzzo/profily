@@ -76,10 +76,8 @@ class Stats:
         # with *args:
         #   def __init__(self, *args, stream=sys.stdout): ...
         # so I use **kwds and sqauwk if something unexpected is passed in.
-        self.stream = sys.stdout
-        if "stream" in kwds:
-            self.stream = kwds["stream"]
-            del kwds["stream"]
+        self.stream = kwds.pop("stream", sys.stdout)
+        self.threshold = kwds.pop("threshold", 0.1)
         if kwds:
             keys = kwds.keys()
             keys.sort()
@@ -401,7 +399,7 @@ class Stats:
             shown_callers = {}
             for func in list:
                 cc, nc, tt, ct, callers = self.stats[func]
-                self.print_dot_line(width, func, callers, shown_callers, 0.05, False)
+                self.print_dot_line(width, func, callers, shown_callers, self.threshold, False)
             # connect callchains that are 20 nodes apart
             for round in range(20):
                 repeat = False
