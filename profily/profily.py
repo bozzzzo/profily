@@ -37,6 +37,9 @@ import sys
 import os
 import time
 import marshal
+import types
+import inspect
+import traceback
 from optparse import OptionParser
 
 __all__ = ["run", "runctx", "help", "Profile"]
@@ -296,9 +299,16 @@ class Profile:
         if self.cur and frame.f_back is not self.cur[-2]:
             rpt, rit, ret, rfn, rframe, rcur = self.cur
             if not isinstance(rframe, Profile.fake_frame):
+                I = lambda x: "".join(traceback.format_stack(x))
+                if rframe.f_back is not frame.f_back:
+                    print "====================================================================="
+                    print I(rframe)
+                    print "!="
+                    print I(frame)
+                    print "====================================================================="
                 assert rframe.f_back is frame.f_back, ("Bad call", rfn,
-                                                       rframe, rframe.f_back,
-                                                       frame, frame.f_back)
+                                                       I(rframe), I(rframe.f_back), "!=",
+                                                       I(frame), I(frame.f_back))
                 self.trace_dispatch_return(rframe, 0)
                 assert (self.cur is None or \
                         frame.f_back is self.cur[-2]), ("Bad call",
@@ -478,6 +488,35 @@ class Profile:
             return func(*args, **kw)
         finally:
             sys.setprofile(None)
+
+
+    # This method is more useful to profile a function call that can be a generator.
+    def rungen(self, func, *args, **kw):
+        self.set_cmd(repr(func))
+        sys.setprofile(self.dispatcher)
+        try:
+            r = func(*args, **kw)
+        finally:
+            sys.setprofile(None)
+
+        if isinstance(r, types.GeneratorType):
+            # tilt the parallel stack sideways
+            sys.setprofile(self.dispatcher)
+            r = self.drain_iterator(r)
+        
+        return r
+
+    def drain_iterator(self, r):
+        sys.setprofile(None)
+        while True:
+            sys.setprofile(self.dispatcher)
+            try:
+                v = r.next()
+            finally:
+                sys.setprofile(None)
+                
+            yield v
+
 
 
     #******************************************************************

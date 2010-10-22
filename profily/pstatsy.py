@@ -419,10 +419,12 @@ class Stats:
         if not call_dict:
             print >> self.stream
             return
+        if not self.total_tt:
+            return
         if ct/self.total_tt < threshold and not best:
             return
         shown_callers[source] = True
-        print >> self.stream, func_dot_id(source), '[ label="%s", penwidth=%s, style="setlinewidth(%s)", color="%s" ];' % (self.func_dot_string(source), self.dot_pen_width(ct), self.dot_pen_width(ct), best and "#cccccc" or "#000000" )
+        print >> self.stream, func_dot_id(source), '[ label="%s", penwidth=%s, style="setlinewidth(%s)", color="%s" ];' % (self.func_dot_string(source), self.dot_pen_width(ct), self.dot_pen_width(ct), best and "#cccccc" or self.dot_color(tt,ct) )
         clist = call_dict.items()
         clist.sort(key=lambda x:x[1][1])
         if best:
@@ -458,6 +460,15 @@ class Stats:
     def dot_weight(self, ct):
         r = ct/self.total_tt
         return 8*math.sqrt(r) + 0.2;
+
+    def dot_color(self, tt, ct):
+        if not ct:
+            r = 0
+        else:
+            r = tt/ct
+            r = math.sqrt(math.sqrt(r))
+            r = int(r*255)
+        return "#%02x0000"%r
 
     def print_call_heading(self, name_size, column_title):
         print >> self.stream, "Function ".ljust(name_size) + column_title
@@ -571,7 +582,7 @@ class TupleComp:
 
 def func_strip_path(func_name):
     filename, line, name = func_name
-    return os.path.basename(filename), line, name
+    return os.path.join(os.path.basename(os.path.dirname(filename)),os.path.basename(filename)), line, name
 
 def func_get_function_name(func):
     return func[2]
