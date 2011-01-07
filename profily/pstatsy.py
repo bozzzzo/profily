@@ -646,7 +646,7 @@ def f8(x):
 # Statistics browser added by ESR, April 2001
 #**************************************************************************
 
-if __name__ == '__main__':
+def main():
     import cmd
     try:
         import readline
@@ -712,6 +712,12 @@ if __name__ == '__main__':
             return self.generic('print_callers', line)
         def help_callers(self):
             print >> self.stream, "Print callers statistics from the current stat object."
+            self.generic_help()
+
+        def do_dot_callers(self, line):
+            return self.generic('dot_callers', line)
+        def help_dot_callers(self):
+            print >> self.stream, "create dot diagram of callers statistics from the current stat object."
             self.generic_help()
 
         def do_EOF(self, line):
@@ -792,4 +798,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
+if __name__ == '__main__':
+    main()
 # That's all, folks.

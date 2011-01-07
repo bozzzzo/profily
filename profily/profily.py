@@ -57,7 +57,7 @@ __all__ = ["run", "runctx", "help", "Profile"]
 # Note that an instance of Profile() is *not* needed to call them.
 #**************************************************************************
 
-def run(statement, filename=None, sort=-1):
+def run(statement, filename=None, dotfile=None, sort=-1):
     """Run statement under profiler optionally saving results in filename
 
     This function takes a single argument that can be passed to the
@@ -75,6 +75,9 @@ def run(statement, filename=None, sort=-1):
         pass
     if filename is not None:
         prof.dump_stats(filename)
+    elif dotfile is not None:
+	import pstatsy
+        pstatsy.Stats(prof,threshold=0.01,stream=open(dotfile,'w')).strip_dirs().sort_stats('cumulative').dot_callers()
     else:
         return prof.print_stats(sort)
 
@@ -642,6 +645,8 @@ def main():
     parser.allow_interspersed_args = False
     parser.add_option('-o', '--outfile', dest="outfile",
         help="Save stats to <outfile>", default=None)
+    parser.add_option('-d', '--dot', dest="dotfile",
+        help="Save dot diagram to <dotfile>", default=None)
     parser.add_option('-s', '--sort', dest="sort",
         help="Sort order when printing to stdout, based on pstats.Stats class", default=-1)
 
@@ -654,7 +659,7 @@ def main():
 
     if (len(sys.argv) > 0):
         sys.path.insert(0, os.path.dirname(sys.argv[0]))
-        run('execfile(%r)' % (sys.argv[0],), options.outfile, options.sort)
+        run('execfile(%r)' % (sys.argv[0],), options.outfile, options.dotfile, options.sort)
     else:
         parser.print_usage()
     return parser

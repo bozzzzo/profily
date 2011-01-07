@@ -22,4 +22,10 @@ setup(
         "Intended Audience :: bozzo",
         "Programming Language :: Python",
     ],
+    entry_points = {
+        'console_scripts': [
+            'profily = profily.profily:main',
+            'pstatsy = profily.pstatsy:main',
+        ]
+    },
 )
