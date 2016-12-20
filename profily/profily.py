@@ -28,6 +28,9 @@ import sys
 import os
 import time
 import marshal
+import types
+import inspect
+import traceback
 from optparse import OptionParser
 
 __all__ = ["run", "runctx", "help", "Profile"]
@@ -45,7 +48,7 @@ __all__ = ["run", "runctx", "help", "Profile"]
 # Note that an instance of Profile() is *not* needed to call them.
 #**************************************************************************
 
-def run(statement, filename=None, sort=-1):
+def run(statement, filename=None, dotfile=None, sort=-1):
     """Run statement under profiler optionally saving results in filename
 
     This function takes a single argument that can be passed to the
@@ -63,10 +66,13 @@ def run(statement, filename=None, sort=-1):
         pass
     if filename is not None:
         prof.dump_stats(filename)
+    elif dotfile is not None:
+	import pstatsy
+        pstatsy.Stats(prof,threshold=0.01,stream=open(dotfile,'w')).strip_dirs().sort_stats('cumulative').dot_callers()
     else:
         return prof.print_stats(sort)
 
-def runctx(statement, globals, locals, filename=None, sort=-1):
+def runctx(statement, globals, locals, filename=None, dotfile=None, sort=-1):
     """Run statement under profiler, supplying your own globals and locals,
     optionally saving results in filename.
 
@@ -80,6 +86,9 @@ def runctx(statement, globals, locals, filename=None, sort=-1):
 
     if filename is not None:
         prof.dump_stats(filename)
+    elif dotfile is not None:
+	import pstatsy
+        pstatsy.Stats(prof,threshold=0.01,stream=open(dotfile,'w')).strip_dirs().sort_stats('cumulative').dot_callers()
     else:
         return prof.print_stats(sort)
 
@@ -278,9 +287,16 @@ class Profile:
         if self.cur and frame.f_back is not self.cur[-2]:
             rpt, rit, ret, rfn, rframe, rcur = self.cur
             if not isinstance(rframe, Profile.fake_frame):
+                I = lambda x: "".join(traceback.format_stack(x))
+                if rframe.f_back is not frame.f_back:
+                    print "====================================================================="
+                    print I(rframe)
+                    print "!="
+                    print I(frame)
+                    print "====================================================================="
                 assert rframe.f_back is frame.f_back, ("Bad call", rfn,
-                                                       rframe, rframe.f_back,
-                                                       frame, frame.f_back)
+                                                       I(rframe), I(rframe.f_back), "!=",
+                                                       I(frame), I(frame.f_back))
                 self.trace_dispatch_return(rframe, 0)
                 assert (self.cur is None or \
                         frame.f_back is self.cur[-2]), ("Bad call",
@@ -331,14 +347,20 @@ class Profile:
             # it returns.
             ct = ct + frame_total
             cc = cc + 1
+        else:
+            frame_total = 0
 
         if pfn in callers:
-            callers[pfn] = callers[pfn] + 1  # hack: gather more
+            ccc, cct = callers[pfn]
+            ccc = ccc + 1
+            cct = cct + frame_total
+            callers[pfn] = ccc, cct
+            # hack: gather more
             # stats such as the amount of time added to ct courtesy
             # of this specific call, and the contribution to cc
             # courtesy of this call.
         else:
-            callers[pfn] = 1
+            callers[pfn] = 1, frame_total
 
         timings[rfn] = cc, ns - 1, tt + rit, ct, callers
 
@@ -424,7 +446,7 @@ class Profile:
         for func, (cc, ns, tt, ct, callers) in self.timings.iteritems():
             callers = callers.copy()
             nc = 0
-            for callcnt in callers.itervalues():
+            for callcnt, callct in callers.itervalues():
                 nc += callcnt
             self.stats[func] = cc, nc, tt, ct, callers
 
@@ -454,6 +476,35 @@ class Profile:
             return func(*args, **kw)
         finally:
             sys.setprofile(None)
+
+
+    # This method is more useful to profile a function call that can be a generator.
+    def rungen(self, func, *args, **kw):
+        self.set_cmd(repr(func))
+        sys.setprofile(self.dispatcher)
+        try:
+            r = func(*args, **kw)
+        finally:
+            sys.setprofile(None)
+
+        if isinstance(r, types.GeneratorType):
+            # tilt the parallel stack sideways
+            sys.setprofile(self.dispatcher)
+            r = self.drain_iterator(r)
+        
+        return r
+
+    def drain_iterator(self, r):
+        sys.setprofile(None)
+        while True:
+            sys.setprofile(self.dispatcher)
+            try:
+                v = r.next()
+            finally:
+                sys.setprofile(None)
+                
+            yield v
+
 
 
     #******************************************************************
@@ -579,6 +630,8 @@ def main():
     parser.allow_interspersed_args = False
     parser.add_option('-o', '--outfile', dest="outfile",
         help="Save stats to <outfile>", default=None)
+    parser.add_option('-d', '--dot', dest="dotfile",
+        help="Save dot diagram to <dotfile>", default=None)
     parser.add_option('-s', '--sort', dest="sort",
         help="Sort order when printing to stdout, based on pstatsy.Stats class",
         default=-1)
@@ -600,7 +653,7 @@ def main():
             '__name__': '__main__',
             '__package__': None,
         }
-        runctx(code, globs, None, options.outfile, options.sort)
+        runctx(code, globs, None, options.outfile, options.dotfile, options.sort)
     else:
         parser.print_usage()
     return parser

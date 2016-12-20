@@ -1,0 +1,13 @@
+Show a diagram of timeflow in the callgraph.
+Thickness of lines repesents amount of time spend in that subgraph
+Redness of squares represents mount of time spent by self, not by descendants
+
+usage:
+
+$ profily --dot callgraph.dot myscript.py
+$ dot -T pdf callgraph.dot > callgraph.pdf
+$ open callgraph.pdf
+
+TODO:
+- figure out how to profile a generator that was created elsewhere
+- add more control over the output to the commandline

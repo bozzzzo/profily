@@ -26,6 +26,7 @@ import time
 import marshal
 import re
 from functools import cmp_to_key
+import math
 
 __all__ = ["Stats"]
 
@@ -64,10 +65,8 @@ class Stats:
         # with *args:
         #   def __init__(self, *args, stream=sys.stdout): ...
         # so I use **kwds and sqauwk if something unexpected is passed in.
-        self.stream = sys.stdout
-        if "stream" in kwds:
-            self.stream = kwds["stream"]
-            del kwds["stream"]
+        self.stream = kwds.pop("stream", sys.stdout)
+        self.threshold = kwds.pop("threshold", 0.1)
         if kwds:
             keys = kwds.keys()
             keys.sort()
@@ -332,7 +331,7 @@ class Stats:
 
         if not stat_list:
             return 0, stat_list
-        print >> self.stream, msg
+        print >> self.stream, '#', msg
         if count < len(self.stats):
             width = 0
             for func in stat_list:
@@ -383,10 +382,91 @@ class Stats:
             self.print_call_heading(width, "was called by...")
             for func in list:
                 cc, nc, tt, ct, callers = self.stats[func]
-                self.print_call_line(width, func, callers, "<-")
+                self.print_caller_line(width, func, callers, "<-")
             print >> self.stream
             print >> self.stream
         return self
+
+    def dot_callers(self, *amount):
+        width, list = self.get_print_list(amount)
+        if list:
+            print >> self.stream, '''digraph g {
+        graph [size="16,12",ranksep=.25];
+        node [shape=box,fontname=Helvetica,fontsize=14];
+        node [width=1.6,height=1.2,fixedsize=true];'''
+            shown_callers = {}
+            for func in list:
+                cc, nc, tt, ct, callers = self.stats[func]
+                self.print_dot_line(width, func, callers, shown_callers, self.threshold, False)
+            # connect callchains that are 20 nodes apart
+            for round in range(20):
+                repeat = False
+                for func in [func for func, shown in shown_callers.items() if not shown]:
+                    repeat = True
+                    cc, nc, tt, ct, callers = self.stats[func]
+                    self.print_dot_line(width, func, callers, shown_callers, 0, True)
+                if not repeat:
+                    break
+            print >> self.stream
+            print >> self.stream, '}'
+        return self
+
+
+    def print_dot_line(self, name_size, source, call_dict, shown_callers, threshold, best):
+        cc, nc, tt, ct, callers = self.stats[source]
+        if not call_dict:
+            print >> self.stream
+            return
+        if not self.total_tt:
+            return
+        if ct/self.total_tt < threshold and not best:
+            return
+        shown_callers[source] = True
+        print >> self.stream, func_dot_id(source), '[ label="%s", penwidth=%s, style="setlinewidth(%s)", color="%s" ];' % (self.func_dot_string(source), self.dot_pen_width(ct), self.dot_pen_width(ct), best and "#cccccc" or self.dot_color(tt,ct) )
+        clist = call_dict.items()
+        clist.sort(key=lambda x:x[1][1])
+        if best:
+            clist = clist[:1]
+        indent = ""
+        for func, (ccc, cct) in clist:
+            fcc, fnc, ftt, fct, fcallers = self.stats[source]
+            if not best and (ct == 0.0 or cct/ct < threshold):
+                continue
+            print >> self.stream, func_dot_id(func), "->", func_dot_id(source), '[ label="%s (%d)", weight=%s, penwidth=%s, style="setlinewidth(%s)"];' % (f8(cct), ccc, self.dot_weight(cct), self.dot_pen_width(cct), self.dot_pen_width(cct),)
+            shown_callers.setdefault(func, False)
+
+    def func_dot_string(self, func_name):
+        if func_name[:2] == ('~', 0):
+            # special case for built-in functions
+            name = func_name[2]
+            if name.startswith('<') and name.endswith('>'):
+                label= '{%s}' % name[1:-1]
+            else:
+                label= name
+        else:
+            label= "%s:%d\\n%s" % func_name
+
+        cc, nc, tt, ct, callers = self.stats[func_name]
+        label += "\\ncc:%d nc:%d\\ntt: %s\\nct:%s" % (cc, nc, f8(tt), f8(ct))
+        return label
+
+
+    def dot_pen_width(self, ct):
+        r = ct/self.total_tt
+        return 8*math.sqrt(r) + 0.2;
+
+    def dot_weight(self, ct):
+        r = ct/self.total_tt
+        return 8*math.sqrt(r) + 0.2;
+
+    def dot_color(self, tt, ct):
+        if not ct:
+            r = 0
+        else:
+            r = tt/ct
+            r = math.sqrt(math.sqrt(r))
+            r = int(r*255)
+        return "#%02x0000"%r
 
     def print_call_heading(self, name_size, column_title):
         print >> self.stream, "Function ".ljust(name_size) + column_title
@@ -412,6 +492,32 @@ class Stats:
             name = func_std_string(func)
             value = call_dict[func]
             if isinstance(value, tuple):
+                nc, cc, tt, ct = value
+                if nc != cc:
+                    substats = '%d/%d' % (nc, cc)
+                else:
+                    substats = '%d' % (nc,)
+                substats = '%s %s %s  %s' % (substats.rjust(7+2*len(indent)),
+                                             f8(tt), f8(ct), name)
+                left_width = name_size + 1
+            else:
+                substats = '%s(%r) %s' % (name, value, f8(self.stats[func][3]))
+                left_width = name_size + 3
+            print >> self.stream, indent*left_width + substats
+            indent = " "
+
+    def print_caller_line(self, name_size, source, call_dict, arrow="->"):
+        print >> self.stream, func_std_string(source).ljust(name_size) + arrow,
+        if not call_dict:
+            print >> self.stream
+            return
+        clist = call_dict.keys()
+        clist.sort()
+        indent = ""
+        for func in clist:
+            name = func_std_string(func)
+            value = call_dict[func]
+            if False and isinstance(value, tuple):
                 nc, cc, tt, ct = value
                 if nc != cc:
                     substats = '%d/%d' % (nc, cc)
@@ -474,7 +580,7 @@ class TupleComp:
 
 def func_strip_path(func_name):
     filename, line, name = func_name
-    return os.path.basename(filename), line, name
+    return os.path.join(os.path.basename(os.path.dirname(filename)),os.path.basename(filename)), line, name
 
 def func_get_function_name(func):
     return func[2]
@@ -489,6 +595,11 @@ def func_std_string(func_name): # match what old profile produced
             return name
     else:
         return "%s:%d(%s)" % func_name
+
+
+idmap = {}
+def func_dot_id(func_name):
+    return idmap.setdefault(func_name,len(idmap))
 
 #**************************************************************************
 # The following functions combine statists for pairs functions.
@@ -539,7 +650,7 @@ def f8(x):
 # Statistics browser added by ESR, April 2001
 #**************************************************************************
 
-if __name__ == '__main__':
+def main():
     import cmd
     try:
         import readline
@@ -606,6 +717,12 @@ if __name__ == '__main__':
             return self.generic('print_callers', line)
         def help_callers(self):
             print >> self.stream, "Print callers statistics from the current stat object."
+            self.generic_help()
+
+        def do_dot_callers(self, line):
+            return self.generic('dot_callers', line)
+        def help_dot_callers(self):
+            print >> self.stream, "create dot diagram of callers statistics from the current stat object."
             self.generic_help()
 
         def do_EOF(self, line):
@@ -702,4 +819,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
+if __name__ == '__main__':
+    main()
 # That's all, folks.
