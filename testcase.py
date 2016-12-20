@@ -1,15 +1,6 @@
 import time
 import profily
 
-def maingen():
-	print "#maingen 1"
-	t04()
-	yield "#maingen 2"
-	t05()
-	yield "#maingen 3"
-	t06()
-	print "#maingen 4"
-
 def main():
 	t01();
 	t03()
@@ -18,6 +9,7 @@ def main():
 	t03();
 	t01()
 	t06();
+	return ()
 
 def t04():
 	print "# t04"
@@ -88,9 +80,5 @@ def busy(delay):
 
 if __name__ == '__main__':
 	prof = profily.Profile()
-	def creategen():
-		return prof.rungen(maingen)
-	def consumegen(gen):
-		print "#", ", ".join(gen)
-	consumegen(creategen())
+	prof.run('main()')
         profily.Stats(prof,threshold=0.01).strip_dirs().sort_stats('cumulative').dot_callers()
