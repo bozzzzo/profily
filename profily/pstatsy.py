@@ -422,7 +422,7 @@ class Stats:
         if ct/self.total_tt < threshold and not best:
             return
         shown_callers[source] = True
-        print >> self.stream, func_dot_id(source), '[ label="%s", penwidth=%s, style="setlinewidth(%s)", color="%s" ];' % (self.func_dot_string(source), self.dot_pen_width(ct), self.dot_pen_width(ct), best and "#cccccc" or self.dot_color(tt,ct) )
+        print >> self.stream, func_dot_id(source), '[ label="%s", penwidth=%.2f, style="setlinewidth(%.2f)", color="%s" ];' % (self.func_dot_string(source), self.dot_pen_width(ct), self.dot_pen_width(ct), best and "#cccccc" or self.dot_color(tt,ct) )
         clist = call_dict.items()
         clist.sort(key=lambda x:x[1][1])
         if best:
@@ -432,7 +432,7 @@ class Stats:
             fcc, fnc, ftt, fct, fcallers = self.stats[source]
             if not best and (ct == 0.0 or cct/ct < threshold):
                 continue
-            print >> self.stream, func_dot_id(func), "->", func_dot_id(source), '[ label="%s (%d)", weight=%s, penwidth=%s, style="setlinewidth(%s)"];' % (f8(cct), ccc, self.dot_weight(cct), self.dot_pen_width(cct), self.dot_pen_width(cct),)
+            print >> self.stream, func_dot_id(func), "->", func_dot_id(source), '[ label="%s (%d)", weight=%s, penwidth=%.2f, style="setlinewidth(%.2f)"];' % (f8(cct), ccc, self.dot_weight(cct), self.dot_pen_width(cct), self.dot_pen_width(cct),)
             shown_callers.setdefault(func, False)
 
     def func_dot_string(self, func_name):
