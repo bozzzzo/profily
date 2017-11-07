@@ -438,13 +438,13 @@ class Stats:
     def func_dot_string(self, func_name):
         if func_name[:2] == ('~', 0):
             # special case for built-in functions
-            name = func_name[2]
+            name = func_name[2].replace('"','')
             if name.startswith('<') and name.endswith('>'):
                 label= '{%s}' % name[1:-1]
             else:
                 label= name
         else:
-            label= "%s:%d\\n%s" % func_name
+            label= "%s:%d\\n%s" % (func_name[0], func_name[1], str(func_name[2]).replace('"',''))
 
         cc, nc, tt, ct, callers = self.stats[func_name]
         label += "\\ncc:%d nc:%d\\ntt: %s\\nct:%s" % (cc, nc, f8(tt), f8(ct))
